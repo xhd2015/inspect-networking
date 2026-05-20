@@ -82,6 +82,7 @@ type options struct {
 	saveFlows     bool
 	noInstall     bool
 	noCodexHome   bool
+	unmaskToken   bool
 	bodyLimit     int
 	mitmPort      string
 	setupCommands stringList
@@ -119,6 +120,7 @@ func parseCommand(args []string, codexMode bool) (options, []string, bool, error
 		Bool("--no-proxy", &opts.noProxy).
 		Bool("--pcap", &opts.pcap).
 		Bool("--save-flows", &opts.saveFlows).
+		Bool("--unmask-token", &opts.unmaskToken).
 		Int("--body-limit", &opts.bodyLimit).
 		StringSlice("--install", &opts.installTools).
 		StringSlice("--setup", &opts.setupCommands).
@@ -158,6 +160,9 @@ func parseCommand(args []string, codexMode bool) (options, []string, bool, error
 		}
 		if opts.noProxy {
 			return opts, nil, false, errors.New("--no-proxy is only supported in mitmproxy mode")
+		}
+		if opts.unmaskToken {
+			return opts, nil, false, errors.New("--unmask-token is only supported in mitmproxy mode")
 		}
 	} else {
 		opts.mode = traceModeMitmProxy
@@ -511,11 +516,12 @@ func runtimeForOptions(opts options) (map[string]string, []string, []string, err
 	switch opts.mode {
 	case traceModeMitmProxy:
 		cfg := mitmproxy.Config{
-			NoProxy:   opts.noProxy,
-			PCAP:      opts.pcap,
-			SaveFlows: opts.saveFlows,
-			BodyLimit: opts.bodyLimit,
-			Port:      opts.mitmPort,
+			NoProxy:     opts.noProxy,
+			PCAP:        opts.pcap,
+			SaveFlows:   opts.saveFlows,
+			UnmaskToken: opts.unmaskToken,
+			BodyLimit:   opts.bodyLimit,
+			Port:        opts.mitmPort,
 		}
 		return mitmproxy.RuntimeFiles(cfg), mitmproxy.PodmanArgs(cfg), mitmproxy.Environment(cfg), nil
 	case traceModeStrace:
@@ -692,6 +698,7 @@ Mitmproxy options:
   --pcap            Also attempt tcpdump capture to traffic.pcap.
   --body-limit N    Include up to N body bytes in JSONL events.
   --save-flows      Save full mitmproxy flows, including bodies.
+  --unmask-token    Do not mask sensitive header values in events.jsonl.
   --no-proxy        Disable mitmproxy.
 `))
 	fmt.Println()
@@ -720,6 +727,7 @@ Mitmproxy options:
   --pcap            Also attempt tcpdump capture to traffic.pcap.
   --body-limit N    Include up to N body bytes in JSONL events.
   --save-flows      Save full mitmproxy flows, including bodies.
+  --unmask-token    Do not mask sensitive header values in events.jsonl.
   --no-proxy        Disable mitmproxy.
 `))
 	fmt.Println()

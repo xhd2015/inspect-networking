@@ -204,6 +204,23 @@ func TestParseStraceRejectsMitmproxyOnlyFlags(t *testing.T) {
 	}
 }
 
+func TestParseStraceRejectsUnmaskToken(t *testing.T) {
+	_, _, _, err := parseCommand([]string{"--strace", "--unmask-token", "curl", "https://example.com"}, false)
+	if err == nil {
+		t.Fatal("expected --unmask-token with --strace to fail")
+	}
+}
+
+func TestParseUnmaskToken(t *testing.T) {
+	opts, _, _, err := parseCommand([]string{"--unmask-token", "curl", "https://example.com"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.unmaskToken {
+		t.Fatal("expected unmaskToken to be true")
+	}
+}
+
 func TestInstallCommandsExplicitRepeated(t *testing.T) {
 	opts, _, _, err := parseCommand([]string{
 		"--install", "claude-code",

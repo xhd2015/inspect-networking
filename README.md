@@ -102,6 +102,9 @@ default:
 # Save full mitmproxy flows. This can include credentials and request bodies.
 ./inspect-networking run --save-flows -- curl https://example.com
 
+# Do not mask sensitive header values in events.jsonl.
+./inspect-networking run --unmask-token -- opencode run
+
 # Use strace instead of mitmproxy.
 ./inspect-networking codex --strace exec "one word of french capacity"
 

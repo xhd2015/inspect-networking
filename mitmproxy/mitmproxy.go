@@ -8,11 +8,12 @@ import (
 const DefaultImage = "localhost/inspect-networking-mitmproxy-runner:latest"
 
 type Config struct {
-	NoProxy   bool
-	PCAP      bool
-	SaveFlows bool
-	BodyLimit int
-	Port      string
+	NoProxy     bool
+	PCAP        bool
+	SaveFlows   bool
+	UnmaskToken bool
+	BodyLimit   int
+	Port        string
 }
 
 func RuntimeFiles(Config) map[string]string {
@@ -35,6 +36,7 @@ func Environment(cfg Config) []string {
 		envPair("INSPECT_USE_PROXY", boolString(!cfg.NoProxy)),
 		envPair("INSPECT_CAPTURE_PCAP", boolString(cfg.PCAP)),
 		envPair("INSPECT_SAVE_FLOWS", boolString(cfg.SaveFlows)),
+		envPair("INSPECT_UNMASK_TOKEN", boolString(cfg.UnmaskToken)),
 		envPair("INSPECT_BODY_LIMIT", strconv.Itoa(cfg.BodyLimit)),
 		envPair("INSPECT_MITM_PORT", cfg.Port),
 	}
@@ -198,6 +200,7 @@ import time
 
 EVENTS_PATH = os.environ.get("INSPECT_EVENTS_PATH", "/out/events.jsonl")
 BODY_LIMIT = int(os.environ.get("INSPECT_BODY_LIMIT", "0") or "0")
+UNMASK_TOKEN = os.environ.get("INSPECT_UNMASK_TOKEN", "0") == "1"
 _lock = threading.Lock()
 
 
@@ -208,7 +211,7 @@ def write_event(event):
             f.write(json.dumps(event, sort_keys=True, separators=(",", ":")) + "\n")
 
 
-SENSITIVE_HEADERS = {
+MASKED_HEADERS = {
     "authorization",
     "proxy-authorization",
     "cookie",
@@ -218,11 +221,46 @@ SENSITIVE_HEADERS = {
 }
 
 
+def mask_secret(value):
+    if value is None:
+        return ""
+    if len(value) <= 4:
+        return "*" * len(value)
+    return value[:2] + "***" + value[-2:]
+
+
+def mask_cookie_value(value):
+    parts = []
+    for part in value.split(";"):
+        prefix = ""
+        item = part
+        while item.startswith(" "):
+            prefix += " "
+            item = item[1:]
+        if "=" in item:
+            name, secret = item.split("=", 1)
+            parts.append(prefix + name + "=" + mask_secret(secret))
+        else:
+            parts.append(prefix + item)
+    return ";".join(parts)
+
+
+def mask_header_value(name, value):
+    lower = name.lower()
+    if lower in ("cookie", "set-cookie"):
+        return mask_cookie_value(value)
+    if lower in ("authorization", "proxy-authorization"):
+        scheme, sep, token = value.partition(" ")
+        if sep:
+            return scheme + sep + mask_secret(token)
+    return mask_secret(value)
+
+
 def header_pairs(headers):
     pairs = []
     for name, value in headers.items(multi=True):
-        if name.lower() in SENSITIVE_HEADERS:
-            value = "<redacted>"
+        if not UNMASK_TOKEN and name.lower() in MASKED_HEADERS:
+            value = mask_header_value(name, value)
         pairs.append([name, value])
     return pairs
 
